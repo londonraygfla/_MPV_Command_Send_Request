@@ -1,0 +1,61 @@
+Func _OnAutoItExitRegister()
+    ; DllClose($h_DLL_MediaInfo)
+    DllClose($h_DLL_kernel32)
+    _MPV_CloseProcesses()
+EndFunc   ;==>_OnAutoItExitRegister
+
+$h_Global_MPV_Pipe = _MPV_GetHandle()
+$sRes = _MPV_Wait_for_Event('{"event":"playback-restart"}') ; Movie started
+
+; https://mpv.io/manual/stable/#property-list
+ConsoleWrite(_MPV_Command_Send_and_Wait_for_Success('["set_property","mute","no"]') & @CRLF)
+ConsoleWrite(_MPV_Command_Send_and_Wait_for_Success('["set_property","volume",50]') & @CRLF)
+
+; ---------
+; main loop
+; ---------
+; Loop until the user exits.
+Global $iDelay = 3000, $iTimer = TimerInit(), $idMsg, $vResult
+Do
+    $idMsg = GUIGetMsg()
+    Switch $idMsg
+        Case $h_Slider
+            ConsoleWrite(GUICtrlRead($h_Slider) & @CRLF)
+            $sCommand = '{"command":["seek","' & GUICtrlRead($h_Slider) & '","absolute-percent+keyframes"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Command_Read_Response() ; flush pipe
+
+        Case $hButton1 ; file open
+            $s_Global_Path_MediaFile = FileGetShortName(FileOpenDialog("load a file", @ScriptDir, "All (*.*)", 3))
+            ; $s_Global_Path_MediaFile = StringMid($s_Global_Path_MediaFile, StringInStr($s_Global_Path_MediaFile, '\', 0, -1) + 1)
+            $sCommand = '{"command":["loadfile", "' & $s_Global_Path_MediaFile & '", "replace"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            MsgBox(262144, "Debug", $sCommand & @CRLF & _MPV_Wait_for_Event(''))
+
+        Case $hButton2 ; step back
+            $sCommand = '{"command":["seek","-10","relative-percent+keyframes"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Wait_for_Event('') ; flush pipe
+            _SetSlider()
+
+        Case $hButton3 ; play/pause
+            $sCommand = '{"command":["cycle","pause"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Wait_for_Event('') ; flush pipe
+
+        Case $hButton4 ; step forward
+            $sCommand = '{"command":["seek","10","relative-percent+keyframes"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Wait_for_Event('') ; flush pipe
+            _SetSlider()
+
+        Case $hButton5 ; take snapshot
+            $s_File_Screenshot = 'screenshot_' & @YEAR & @MON & @MDAY & @HOUR & @MIN & @SEC & @MSEC & '.png'
+            $sCommand = '{"command":["screenshot-to-file","' & $s_File_Screenshot & '","video"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Wait_for_Event('') ; flush pipe
+
+        Case $hButton6 ; audio on/off
+            $sCommand = '{"command":["cycle","mute"]}' & @LF
+            $sRes = _MPV_Command_Send_Request($sCommand)
+            _MPV_Wait_for_Event('') ; flush pipe
